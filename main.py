@@ -26,7 +26,10 @@ def main():
     )
     
     try:
-        crawler.crawl(target_count=100_000, batch_size=100)
+        target_count = int(os.environ.get('TARGET_COUNT', '100000'))
+    
+        crawler.crawl(target_count=target_count)
+        # crawler.crawl(target_count=100_000, batch_size=100)
         
     finally:
         repository.close()

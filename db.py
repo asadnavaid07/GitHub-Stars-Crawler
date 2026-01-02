@@ -17,9 +17,9 @@ def setup_schema():
                  owner VARCHAR(255) NOT NULL,
                  name VARCHAR(255) NOT NULL,
                  full_name VARCHAR(512) NOT NULL UNIQUE,
-                 created_at TIMESTAMPZ,
-                 updated_at TIMESTAMPZ,
-                 last_crawled_at TIMESTAMPZ DEFAULT NOW(),
+                 created_at TIMESTAMPTZ,
+                 updated_at TIMESTAMPTZ,
+                 last_crawled_at TIMESTAMPTZ DEFAULT NOW(),
                  CONSTRAINT uniquue_owner_name UNIQUE(owner,name)
                  );
 """)
@@ -29,7 +29,7 @@ def setup_schema():
                  id BIGSERIAL PRIMARY KEY,
                  repository_id BIGINT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
                  star_count INTEGER NOT NULL,
-                 observed_at TIMESTAMPZ NOT NULL DEFAULT NOW(),
+                 observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                  CONSTRAINT unique_repo_observation UNIQUE(repository_id,observed_at)
                  );
 """)
