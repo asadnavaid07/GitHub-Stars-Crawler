@@ -38,7 +38,7 @@ def setup_schema():
     CREATE INDEX IF NOT EXISTS idx_repos_full_name ON repositories(full_name);
 """)
     curr.execute("""
-    CREATE INDEX IF NOT EXISTS idx_repos_last_crawled ON repositories(last_crawled);
+    CREATE INDEX IF NOT EXISTS idx_repos_last_crawled_at ON repositories(last_crawled_at);
 """)
     curr.execute("""
     CREATE INDEX IF NOT EXISTS idx_stars_repo_id ON repository_stars(repository_id);
