@@ -1,0 +1,106 @@
+name: GitHub Stars Crawler
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_count:
+        description: 'Number of repos to crawl'
+        required: false
+        default: '1000'
+      use_neon:
+        description: 'Use Neon database instead of local PostgreSQL'
+        required: false
+        default: 'true'
+        type: boolean
+  
+  # Schedule - disabled by default for testing
+  # Uncomment when ready for production
+  # schedule:
+  #   - cron: '0 0 * * *'  # Daily at midnight UTC
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    
+    # Only use service container if NOT using Neon
+    services:
+      postgres:
+        image: ${{ github.event.inputs.use_neon == 'false' && 'postgres:15' || '' }}
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: github_crawler
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      # Setup database (works for both Neon and local)
+      - name: Setup database schema
+        env:
+          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.NEON_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
+        run: |
+          echo "Using database: ${{ github.event.inputs.use_neon == 'true' && 'Neon (cloud)' || 'PostgreSQL (local)' }}"
+          python src/setup_database.py
+      
+      # Crawl with configurable target
+      - name: Crawl GitHub stars
+        env:
+          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.NEON_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_COUNT: ${{ github.event.inputs.target_count || '100000' }}
+        run: |
+          echo "Crawling $TARGET_COUNT repositories..."
+          python src/crawl_stars.py
+      
+      # Export data
+      - name: Export database to CSV
+        env:
+          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.NEON_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
+        run: |
+          python src/export_data.py
+      
+      # Upload artifacts
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: crawled-data-${{ github.event.inputs.target_count || '100000' }}
+          path: |
+            exports/*.csv
+            exports/*.json
+          retention-days: 30
+      
+      # Optional: Show summary
+      - name: Display summary
+        env:
+          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.NEON_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
+        run: |
+          python -c "
+          import os
+          import psycopg2
+          conn = psycopg2.connect(os.environ['DATABASE_URL'])
+          cur = conn.cursor()
+          cur.execute('SELECT COUNT(*) FROM repositories')
+          count = cur.fetchone()[0]
+          print(f'\nTotal repositories in database: {count:,}')
+          cur.execute('SELECT COUNT(*) FROM repository_stars')
+          stars = cur.fetchone()[0]
+          print(f' Total star observations: {stars:,}')
+          conn.close()
+          "
