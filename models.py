@@ -16,7 +16,7 @@ class RepositoryModel:
                  '_created_at', '_updated_at')
     
     def __init__(self,db_id:int, owner:str,name:str, full_name:str,star_count:int,created_at:str,updated_at:str):
-        object.__setattr__(self,'db_id',db_id)
+        object.__setattr__(self,'_db_id',db_id)
         object.__setattr__(self, '_owner', owner)
         object.__setattr__(self, '_name', name)
         object.__setattr__(self, '_full_name', full_name)
