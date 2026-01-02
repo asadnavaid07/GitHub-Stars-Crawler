@@ -76,7 +76,7 @@ class CrawlerService:
         return self._total_crawled
     
 
-    def generate_cusors(self,target_count:int,batch_size:int)->Iterator[Optional[str]]:
+    def _generate_cusors(self,target_count:int,batch_size:int)->Iterator[Optional[str]]:
 
         cursor=None
         fetched=0
