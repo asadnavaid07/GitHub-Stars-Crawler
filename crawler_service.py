@@ -1,6 +1,6 @@
 import os,time
 from datetime import datetime
-from typing import List,Dict,Optional,Iterator
+from typing import List,Dict,Optional,Iterator,Tuple
 from concurrent.futures import ThreadPoolExecutor,as_completed
 from queue import Queue
 from threading import Lock,Thread
@@ -32,33 +32,46 @@ class CrawlerService:
         writer_thread=Thread(target=self._background_writer,daemon=True)
         writer_thread.start()
 
-        cursors=self._generate_cursors(target_count,batch_size)
-
+        cursor = None
+        pending_futures = set()
+        
         with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
-            futures={
-                executor.submit(self._fetch_batch,cursor,batch_size): cursor
-                for cursor in cursors
-            }
+            # Submit initial batch
+            future = executor.submit(self._fetch_batch, cursor, batch_size)
+            pending_futures.add(future)
 
-            for future in as_completed(futures):
+            while pending_futures and self._total_crawled < target_count:
+                # Wait for at least one future to complete
+                done_future = next(as_completed(pending_futures), None)
+                if not done_future:
+                    break
+                
+                pending_futures.remove(done_future)
+                
                 try:
-                    batch_repos=future.result()
+                    batch_repos, next_cursor = done_future.result()
 
                     if batch_repos:
                         self._write_queue.put(batch_repos)
-                        self._total_crawled+=len(batch_repos)
+                        self._total_crawled += len(batch_repos)
 
                         if self._total_crawled % 1000 == 0:
-                                elapsed = time.time() - start_time
-                                rate = self._total_crawled / elapsed if elapsed > 0 else 0
-                                print(f"Progress: {self._total_crawled:,} repos | "
-                                      f"Rate: {rate:.0f} repos/sec")
+                            elapsed = time.time() - start_time
+                            rate = self._total_crawled / elapsed if elapsed > 0 else 0
+                            print(f"Progress: {self._total_crawled:,} repos | "
+                                  f"Rate: {rate:.0f} repos/sec")
+                    
+                    # Submit next batch if we have a cursor and haven't reached target
+                    if next_cursor and self._total_crawled < target_count:
+                        new_future = executor.submit(self._fetch_batch, next_cursor, batch_size)
+                        pending_futures.add(new_future)
                         
-                        if self._total_crawled >= target_count:
-                            break
-                            
                 except Exception as e:
                     print(f"Batch error: {e}")
+                
+                # Check if we should break
+                if self._total_crawled >= target_count:
+                    break
 
         self._write_queue.put(None)
         writer_thread.join()
@@ -75,44 +88,32 @@ class CrawlerService:
         
         return self._total_crawled
     
-
-    def _generate_cursors(self,target_count:int,batch_size:int)->Iterator[Optional[str]]:
-
-        cursor=None
-        fetched=0
-
-        while fetched< target_count:
-            yield cursor
-            fetched += batch_size
-
-            if cursor is None:
-                result = self._api_client.fetch_repositories(cursor, 1)
-                if result and result.get('data', {}).get('search', {}).get('pageInfo', {}).get('endCursor'):
-                    cursor = result['data']['search']['pageInfo']['endCursor']
-                else:
-                    # If we can't get a cursor, break the loop
-                    break
-    
     def _fetch_batch(self, cursor: Optional[str], 
-                    batch_size: int) -> List[RepositoryModel]:
+                    batch_size: int) -> Tuple[List[RepositoryModel], Optional[str]]:
 
         try:
             result = self._api_client.fetch_repositories(cursor, batch_size)
             
             if not result:
-                return []
+                return [], None
             
-            nodes = result.get('data', {}).get('search', {}).get('nodes', [])
+            data = result.get('data', {})
+            search = data.get('search', {})
+            nodes = search.get('nodes', [])
+            page_info = search.get('pageInfo', {})
+            next_cursor = page_info.get('endCursor') if page_info else None
  
-            return [
+            repos = [
                 RepositoryModel.from_api_response(node)
                 for node in nodes
                 if node and 'databaseId' in node
             ]
             
+            return repos, next_cursor
+            
         except Exception as e:
             print(f"Fetch error: {e}")
-            return []
+            return [], None
     
     def _background_writer(self):
 

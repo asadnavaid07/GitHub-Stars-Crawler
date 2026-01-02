@@ -129,11 +129,11 @@ def main():
     
     print("\n" + "="*60)
     print("Export Summary:")
-    print(f"Total repositories: {stats[0]:,}")
-    print(f"Total stars: {stats[1]:,}")
-    print(f"Average stars: {stats[2]:.2f}")
-    print(f"Max stars: {stats[3]:,}")
-    print(f"Min stars: {stats[4]:,}")
+    print(f"Total repositories: {stats[0] or 0:,}")
+    print(f"Total stars: {stats[1] or 0:,}")
+    print(f"Average stars: {stats[2] or 0:.2f}")
+    print(f"Max stars: {stats[3] or 0:,}")
+    print(f"Min stars: {stats[4] or 0:,}")
     print("="*60)
 
 
