@@ -58,7 +58,7 @@ def setup_schema():
         rs.observed_at
     FROM repositories r
     JOIN repository_stars rs
-    ON r.id == rs.repository_id
+    ON r.id = rs.repository_id
     ORDER BY repository_id,observed_at DESC;
 """
     )
