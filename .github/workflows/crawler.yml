@@ -1,6 +1,7 @@
 name: GitHub Stars Crawler
 
 on:
+  # Manual trigger - for testing anytime
   workflow_dispatch:
     inputs:
       target_count:
@@ -22,7 +23,6 @@ jobs:
   crawl:
     runs-on: ubuntu-latest
     
-    # Only use service container if NOT using Neon
     services:
       postgres:
         image: ${{ github.event.inputs.use_neon == 'false' && 'postgres:15' || '' }}
@@ -50,15 +50,14 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-     
+    
       - name: Setup database schema
         env:
           DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
         run: |
           echo "Using database: ${{ github.event.inputs.use_neon == 'true' && 'Neon (cloud)' || 'PostgreSQL (local)' }}"
-          python src/setup_database.py
-      
-      # Crawl with configurable target
+          python db.py
+    
       - name: Crawl GitHub stars
         env:
           DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
@@ -66,16 +65,14 @@ jobs:
           TARGET_COUNT: ${{ github.event.inputs.target_count || '100000' }}
         run: |
           echo "Crawling $TARGET_COUNT repositories..."
-          python src/crawl_stars.py
+          python main.py
       
-
       - name: Export database to CSV
         env:
           DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
         run: |
-          python src/export_data.py
+          python crawler_export.py
       
-  
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -84,8 +81,7 @@ jobs:
             exports/*.csv
             exports/*.json
           retention-days: 30
-      
-      # Optional: Show summary
+  
       - name: Display summary
         env:
           DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
@@ -97,9 +93,9 @@ jobs:
           cur = conn.cursor()
           cur.execute('SELECT COUNT(*) FROM repositories')
           count = cur.fetchone()[0]
-          print(f'\nTotal repositories in database: {count:,}')
+          print(f'\n✅ Total repositories in database: {count:,}')
           cur.execute('SELECT COUNT(*) FROM repository_stars')
           stars = cur.fetchone()[0]
-          print(f' Total star observations: {stars:,}')
+          print(f'✅ Total star observations: {stars:,}')
           conn.close()
           "
