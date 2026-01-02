@@ -19,7 +19,7 @@ class GitHubClient:
         self._rate_limit_reset_at=None
         self._lock=Lock()
 
-    def fetch_repositories(self,cursor:Optional[str]=None,per_page:int=100)->Dict:
+    def fetch_repositories(self,cursor:Optional[str]=None,per_page:int=100)->Optional[Dict]:
         query="""
         query($cursor:String,$perPage:Int!){
             search(
@@ -45,13 +45,22 @@ class GitHubClient:
          }
         }
         """
+        variables = {
+            "cursor": cursor,
+            "perPage": per_page
+        }
+        try:
+            return self._execute_with_retry(query, variables)
+        except Exception as e:
+            print(f"Error fetching repositories: {e}")
+            return None
     
 
     def _execute_with_retry(self,query:str,variables:Dict, max_retries:int=3)->Dict:
 
         for attempt in range(max_retries):
             try:
-                with self._lock():
+                with self._lock:
                     self._check_rate_limit()
                 
                 response= requests.post(
@@ -61,7 +70,7 @@ class GitHubClient:
                     timeout=30
                 )
 
-                with self._lock():
+                with self._lock:
                     self._update_rate_limit(response.headers)
 
                 if response.status_code==200:

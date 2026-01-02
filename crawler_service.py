@@ -87,14 +87,20 @@ class CrawlerService:
 
             if cursor is None:
                 result = self._api_client.fetch_repositories(cursor, 1)
-                if result.get('data', {}).get('search', {}).get('pageInfo', {}).get('endCursor'):
+                if result and result.get('data', {}).get('search', {}).get('pageInfo', {}).get('endCursor'):
                     cursor = result['data']['search']['pageInfo']['endCursor']
+                else:
+                    # If we can't get a cursor, break the loop
+                    break
     
     def _fetch_batch(self, cursor: Optional[str], 
                     batch_size: int) -> List[RepositoryModel]:
 
         try:
             result = self._api_client.fetch_repositories(cursor, batch_size)
+            
+            if not result:
+                return []
             
             nodes = result.get('data', {}).get('search', {}).get('nodes', [])
  
