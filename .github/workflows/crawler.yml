@@ -50,11 +50,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-      
-      # Setup database (works for both Neon and local)
+     
       - name: Setup database schema
         env:
-          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.NEON_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
+          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
         run: |
           echo "Using database: ${{ github.event.inputs.use_neon == 'true' && 'Neon (cloud)' || 'PostgreSQL (local)' }}"
           python src/setup_database.py
@@ -62,23 +61,23 @@ jobs:
       # Crawl with configurable target
       - name: Crawl GitHub stars
         env:
-          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.NEON_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
+          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_COUNT: ${{ github.event.inputs.target_count || '100000' }}
         run: |
           echo "Crawling $TARGET_COUNT repositories..."
           python src/crawl_stars.py
       
-      # Export data
+
       - name: Export database to CSV
         env:
-          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.NEON_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
+          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
         run: |
           python src/export_data.py
       
-      # Upload artifacts
+  
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: crawled-data-${{ github.event.inputs.target_count || '100000' }}
           path: |
@@ -89,7 +88,7 @@ jobs:
       # Optional: Show summary
       - name: Display summary
         env:
-          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.NEON_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
+          DATABASE_URL: ${{ github.event.inputs.use_neon == 'true' && secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/github_crawler' }}
         run: |
           python -c "
           import os
