@@ -65,6 +65,9 @@ class CrawlerService:
                     if next_cursor and self._total_crawled < target_count:
                         new_future = executor.submit(self._fetch_batch, next_cursor, batch_size)
                         pending_futures.add(new_future)
+                    elif not next_cursor:
+                        print(f"No more cursors available. Total crawled: {self._total_crawled}")
+                        break
                         
                 except Exception as e:
                     print(f"Batch error: {e}")
@@ -95,24 +98,44 @@ class CrawlerService:
             result = self._api_client.fetch_repositories(cursor, batch_size)
             
             if not result:
+                print(f"Warning: No result returned for cursor: {cursor}")
                 return [], None
             
             data = result.get('data', {})
+            if not data:
+                print(f"Warning: No data in response for cursor: {cursor}")
+                return [], None
+                
             search = data.get('search', {})
+            if not search:
+                print(f"Warning: No search data in response for cursor: {cursor}")
+                return [], None
+                
             nodes = search.get('nodes', [])
             page_info = search.get('pageInfo', {})
             next_cursor = page_info.get('endCursor') if page_info else None
- 
-            repos = [
-                RepositoryModel.from_api_response(node)
-                for node in nodes
-                if node and 'databaseId' in node
-            ]
             
+            if not nodes:
+                print(f"Warning: No nodes returned for cursor: {cursor}")
+                return [], next_cursor
+ 
+            repos = []
+            for node in nodes:
+                try:
+                    if node and 'databaseId' in node:
+                        repo = RepositoryModel.from_api_response(node)
+                        repos.append(repo)
+                except Exception as e:
+                    print(f"Error parsing repository node: {e}")
+                    continue
+            
+            print(f"Fetched {len(repos)} repositories (cursor: {cursor[:20] if cursor else 'None'}...)")
             return repos, next_cursor
             
         except Exception as e:
             print(f"Fetch error: {e}")
+            import traceback
+            traceback.print_exc()
             return [], None
     
     def _background_writer(self):

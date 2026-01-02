@@ -37,7 +37,7 @@ class GitHubClient:
                 login}
                 name
                 nameWithOwner
-                stargazeCount
+                stargazerCount
                 createdAt
                 updatedAt
                 }
@@ -50,9 +50,20 @@ class GitHubClient:
             "perPage": per_page
         }
         try:
-            return self._execute_with_retry(query, variables)
+            result = self._execute_with_retry(query, variables)
+            if result and 'data' in result and result.get('data'):
+                return result
+            elif result and 'errors' in result:
+                error_messages = [err.get('message', 'Unknown error') for err in result.get('errors', [])]
+                print(f"GraphQL API errors: {', '.join(error_messages)}")
+                return None
+            else:
+                print(f"Unexpected API response format: {result}")
+                return None
         except Exception as e:
             print(f"Error fetching repositories: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
 
@@ -74,7 +85,12 @@ class GitHubClient:
                     self._update_rate_limit(response.headers)
 
                 if response.status_code==200:
-                    return response.json()
+                    json_response = response.json()
+                    # Check for GraphQL errors in response
+                    if 'errors' in json_response:
+                        error_messages = [err.get('message', 'Unknown error') for err in json_response.get('errors', [])]
+                        raise Exception(f"GraphQL errors: {', '.join(error_messages)}")
+                    return json_response
                 if response.status_code==403:
                     self._wait_for_rate_limit_reset()
                     continue
