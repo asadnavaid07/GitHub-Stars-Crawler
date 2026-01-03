@@ -3,20 +3,20 @@ name: GitHub Stars Crawler
 on:
   # Manual trigger 
   workflow_dispatch:
-  #   inputs:
-  #     target_count:
-  #       description: 'Number of repos to crawl'
-  #       required: false
-  #       default: '1000'
-  #     use_neon:
-  #       description: 'Use Neon database instead of local PostgreSQL'
-  #       required: false
-  #       default: 'true'
-  #       type: boolean
+    inputs:
+      target_count:
+        description: 'Number of repos to crawl'
+        required: false
+        default: '1000'
+      use_neon:
+        description: 'Use Neon database instead of local PostgreSQL'
+        required: false
+        default: 'true'
+        type: boolean
   
 
-  schedule:
-    - cron: '0 0 * * *'  # Daily at midnight UTC
+  # schedule:
+  #   - cron: '0 0 * * *'  # Daily at midnight UTC
 
 jobs:
   crawl:
